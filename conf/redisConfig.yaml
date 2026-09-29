@@ -1,0 +1,6 @@
+# conf/redisConfig.yaml（SPEC §14.3）
+local-redis:
+  host: 127.0.0.1
+  port: 6379
+  database: 0
+  level: write                # 本机 WSL Docker 测试实例（无密码）

@@ -1,0 +1,29 @@
+# conf/mysqlConfig.yaml —— MySQL 连接（一类库一个文件；顶层 key = 连接别名）
+# 密码一律走 ${env:}，本文件可进 Git（注意内网地址敏感性）。
+#
+# 示例（SPEC §14.3）：
+#   vm-docker:
+#     host: 192.168.56.10
+#     port: 13306
+#     user: root
+#     password: ${env:OMNI_MYSQL_DOCKER_PWD}
+#     database: dev
+#     level: write
+#   crm-prod:
+#     host: 10.20.30.40
+#     user: readonly            # 数据库层只读账号，双保险
+#     password: ${env:OMNI_MYSQL_CRM_PWD}
+#     database: crm
+#     level: readonly
+#     rules: [prod-safe]
+#     timeout: 20
+
+local-test:
+  host: 127.0.0.1
+  port: 3306
+  user: root
+  password: ${env:OMNI_MYSQL_LOCAL_PWD}
+  database: test
+  level: write                  # 本机测试库：授权声明（§9.2 ④）
+  rules: [dev-loose]
+  unsafe: true                  # 演示唯一放宽开关：让 dev-loose 的 max_rows 生效

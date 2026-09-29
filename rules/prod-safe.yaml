@@ -1,0 +1,15 @@
+# rules/prod-safe.yaml —— 生产保护（SPEC §9.1）
+# 建议按连接挂载（如 crm-prod 的 rules: [prod-safe]）；
+# 若组织内所有连接都需生产级保护，可改 global: true。
+name: 生产保护
+global: false
+max_level: readonly
+max_rows: 100
+deny:
+  - DDL
+  - multi_statement
+  - update_without_where
+  - delete_without_where
+  - grant
+  - shutdown
+allow: []

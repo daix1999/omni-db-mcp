@@ -1,0 +1,6 @@
+# conf/mongoConfig.yaml（SPEC §14.3）
+local-mongo:
+  host: 127.0.0.1
+  port: 27017
+  database: smokedb           # 冒烟专用库（WSL Docker 实例无认证）
+  level: write                # 本机 WSL Docker 测试实例（无认证）

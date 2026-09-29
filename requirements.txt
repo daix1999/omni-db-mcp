@@ -1,0 +1,7 @@
+mcp>=1.2.0
+pymysql>=1.1.0
+redis>=5.0.0
+pymongo>=4.6.0
+sqlglot>=25.0.0
+PyYAML>=6.0
+python-dotenv>=1.0.0

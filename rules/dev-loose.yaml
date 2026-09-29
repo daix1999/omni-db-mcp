@@ -1,0 +1,6 @@
+# rules/dev-loose.yaml —— 开发放宽（挂载方需 unsafe: true 才能让行数生效）
+name: 开发放宽
+global: false
+max_rows: 1000
+deny:
+  - multi_statement       # 只禁多语句，其余放开

@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>omni-db-mcp 设计说明书</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #F7F8FA; --card: #FFFFFF; --line: #E5E7EB;
+    --ink: #1F2328; --ink2: #57606A; --ink3: #8B949E;
+    --blue-50: #E6F1FB; --blue-100: #B5D4F4; --blue-200: #85B7EB;
+    --blue-400: #378ADD; --blue-600: #185FA5; --blue-900: #042C53;
+    --green-50: #EAF3DE; --green-600: #3B6D11;
+    --amber-50: #FAEEDA; --amber-600: #854F0B;
+    --red-50: #FCEBEB; --red-600: #A32D2D;
+    --gray-50: #F1EFE8; --gray-100: #D3D1C7; --gray-400: #888780;
+    --mono: Consolas, "SF Mono", "Courier New", monospace;
+  }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--ink);
+    font-size: 15px; line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px 80px; }
+  .layout { display: flex; gap: 36px; align-items: flex-start; }
+  .side { width: 208px; flex: none; position: sticky; top: 24px; padding-top: 40px; }
+  .main { flex: 1; min-width: 0; }
+  .side-title { font-size: 12px; color: var(--ink3); letter-spacing: .08em; margin-bottom: 10px; }
+  .side a {
+    display: block; font-size: 13px; color: var(--ink2); text-decoration: none;
+    padding: 5px 10px; border-radius: 6px; border-left: 2px solid transparent;
+  }
+  .side a:hover { background: var(--blue-50); color: var(--blue-600); }
+  .side a.on { background: var(--blue-50); color: var(--blue-600); border-left-color: var(--blue-600); }
+
+  header.top { padding: 56px 0 32px; border-bottom: 1px solid var(--line); margin-bottom: 36px; }
+  .tagline { display: inline-block; font-size: 12px; color: var(--blue-600);
+    background: var(--blue-50); padding: 3px 10px; border-radius: 999px; margin-bottom: 16px; }
+  h1 { font-size: 32px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.3; }
+  .sub { font-size: 16px; color: var(--ink2); margin-top: 12px; max-width: 760px; }
+  .meta { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .meta span { font-size: 12px; color: var(--ink2); background: var(--card);
+    border: 1px solid var(--line); padding: 3px 10px; border-radius: 6px; }
+
+  section { margin-bottom: 56px; scroll-margin-top: 24px; }
+  h2 { font-size: 22px; font-weight: 600; margin-bottom: 6px; display: flex; align-items: baseline; gap: 10px; }
+  h2 .num { font-size: 13px; color: var(--blue-400); font-family: var(--mono); font-weight: 400; }
+  .lead { color: var(--ink2); margin-bottom: 20px; font-size: 15px; }
+  h3 { font-size: 16px; font-weight: 600; margin: 28px 0 10px; }
+  h4 { font-size: 14px; font-weight: 600; margin: 20px 0 8px; color: var(--ink2); }
+  p { margin-bottom: 12px; }
+  strong { font-weight: 600; }
+  ul, ol { margin: 0 0 12px 22px; }
+  li { margin-bottom: 5px; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 22px 24px; margin-bottom: 18px; }
+  .card.quote { border-left: 3px solid var(--blue-400); background: #FCFDFF; }
+  .card.warn { border-left: 3px solid var(--amber-600); background: #FFFCF5; }
+  .card.danger { border-left: 3px solid var(--red-600); background: #FFFBFB; }
+  .card.ok { border-left: 3px solid var(--green-600); background: #FBFDF8; }
+
+  pre { background: #F6F8FA; border: 1px solid var(--line); border-radius: 8px;
+    padding: 14px 16px; overflow-x: auto; font-family: var(--mono);
+    font-size: 12.5px; line-height: 1.65; color: #24292F; margin-bottom: 14px; }
+  code { font-family: var(--mono); font-size: 12.5px; background: #F0F2F5;
+    padding: 1px 5px; border-radius: 4px; color: #0A3069; }
+  pre code { background: none; padding: 0; color: inherit; }
+  .cmt { color: #6E7781; }
+  .kw { color: #CF222E; }
+  .st { color: #0A3069; }
+  .fn { color: #8250DF; }
+
+  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 13.5px; }
+  th { text-align: left; font-weight: 600; color: var(--ink2); font-size: 12.5px;
+    border-bottom: 1.5px solid var(--line); padding: 8px 10px; white-space: nowrap; }
+  td { padding: 9px 10px; border-bottom: 1px solid #F0F1F3; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td code, th code { font-size: 12px; }
+
+  .pill { display: inline-block; font-size: 11.5px; padding: 2px 8px; border-radius: 5px;
+    font-weight: 500; white-space: nowrap; }
+  .p-ok   { background: var(--green-50); color: var(--green-600); }
+  .p-mid  { background: var(--amber-50); color: var(--amber-600); }
+  .p-no   { background: var(--red-50);   color: var(--red-600); }
+  .p-b    { background: var(--blue-50);  color: var(--blue-600); }
+  .p-g    { background: var(--gray-50);  color: #5F5E5A; }
+
+  svg { display: block; width: 100%; height: auto; margin: 4px 0 18px; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 980px) {
+    .grid2 { grid-template-columns: 1fr; }
+    .side { display: none; }
+    .wrap { padding: 0 18px 60px; }
+  }
+  .kv { font-size: 13.5px; }
+  .kv b { display: inline-block; min-width: 88px; color: var(--ink2); font-weight: 500; }
+  .note { font-size: 13px; color: var(--ink3); margin-top: -6px; margin-bottom: 14px; }
+  hr { border: none; border-top: 1px solid var(--line); margin: 40px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <span class="tagline">设计说明书 · v1.0（按实现修订）</span>
+  <h1>omni-db-mcp</h1>
+  <p class="sub">一个通用的数据库连接器 MCP —— 让 AI 用一个入口访问你所有的数据库。<br>
+  加一个新类型的库，只需要加一个插件文件。</p>
+  <div class="meta">
+    <span>设计 2026-09-28 · 实现 2026-09-28</span>
+    <span>技术栈 Python</span>
+    <span>状态：v1.0.0 已实现，验收全部通过</span>
+    <span>已覆盖 MySQL · Redis · MongoDB</span>
+  </div>
+</header>
+
+<div class="layout">
+<nav class="side">
+  <div class="side-title">目录</div>
+  <a href="#s1">1 · 这是什么</a>
+  <a href="#s2">2 · 为什么需要它</a>
+  <a href="#s3">3 · 一个入口，两级分流</a>
+  <a href="#s4">4 · 三个角色</a>
+  <a href="#s5">5 · 走一遍真实流程</a>
+  <a href="#s6">6 · 配置怎么写</a>
+  <a href="#s7">7 · AI 看到的工具</a>
+  <a href="#s8">8 · 安全设计</a>
+  <a href="#s9">9 · 审计留痕</a>
+  <a href="#s10">10 · 项目结构</a>
+  <a href="#s11">11 · 能力范围</a>
+  <a href="#s12">12 · 决策清单</a>
+</nav>
+
+<main class="main">
+
+<!-- ============ 1 ============ -->
+<section id="s1">
+  <h2><span class="num">01</span>这是什么</h2>
+  <p class="lead">一句话：给 AI 配一个「数据库总台」。</p>
+
+  <div class="card quote">
+    <p>AI 想查数据库的时候，不直接连库，而是<b>先找总台</b>。总台负责：认出这是哪个库、判断这个操作允不允许、把请求转给对应的库、最后记一笔台账。</p>
+    <p style="margin-bottom:0">对这个 AI 来说，它眼里<b>只有一个接口</b>。背后是 MySQL 还是 Redis、在本地还是云端，它不用关心。</p>
+  </div>
+
+  <h3>为什么叫 omni</h3>
+  <p><b>omni</b> = 全能、通吃。这个名字要表达三件事：</p>
+  <table>
+    <tr><th>特质</th><th>含义</th></tr>
+    <tr><td><b>通用</b></td><td>不是「MySQL 工具」，而是能接各种类型的数据库</td></tr>
+    <tr><td><b>可扩展</b></td><td>想支持一种新库，加一个插件文件就行，底座不用动</td></tr>
+    <tr><td><b>入口</b></td><td>所有请求从这一个口进，由它分流</td></tr>
+  </table>
+
+  <div class="card ok">
+    <h4 style="margin-top:0">这套设计成立的核心证据</h4>
+    <p style="margin-bottom:0">首版要接的 3 个库跨了<b>三种完全不同的类型</b>（关系型 / 键值型 / 文档型），它们的操作方式毫无共同点。如果连这三种都能用同一套契约接进来，说明这套抽象是真的成立。</p>
+  </div>
+</section>
+
+<!-- ============ 2 ============ -->
+<section id="s2">
+  <h2><span class="num">02</span>为什么需要它</h2>
+  <p class="lead">先看没有它会怎样。</p>
+
+  <h3>现状：每接一个库，就要配一遍</h3>
+  <table>
+    <tr><th>痛点</th><th>具体表现</th></tr>
+    <tr><td>重复配置</td><td>每个库一个 MCP 服务，地址、账号、密码重配一遍；3 个环境配 3 次</td></tr>
+    <tr><td>管不住</td><td>没有统一的地方能说「这个库只能读，那个库能写」</td></tr>
+    <tr><td>没台账</td><td>AI 到底执行过什么，事后无从查证</td></tr>
+    <tr><td>生产库不敢碰</td><td>怕 AI 手一抖在云上删了数据，干脆不给它连</td></tr>
+    <tr><td>版本差异烦</td><td>MySQL 5.7 和 8.0 语法不一样，AI 容易写出 5.7 跑不了的语句</td></tr>
+  </table>
+
+  <h3>有了它之后</h3>
+  <table>
+    <tr><th>方面</th><th>变化</th></tr>
+    <tr><td>配置</td><td>所有连接写在一处，一类库一个配置文件</td></tr>
+    <tr><td>管控</td><td>三级权限 + 规则包，生产库锁死只读</td></tr>
+    <tr><td>审计</td><td>每次操作自动落日志，含被拒绝的操作</td></tr>
+    <tr><td>扩展</td><td>加新库 = 加一个插件文件 + 一个配置文件</td></tr>
+    <tr><td>版本差异</td><td>连上后自动探测版本，按实际能力调整行为</td></tr>
+  </table>
+</section>
+
+<!-- ============ 3 ============ -->
+<section id="s3">
+  <h2><span class="num">03</span>一个入口，两级分流</h2>
+  <p class="lead">整个系统只有一张骨架图，看懂了这张就看懂了全部。</p>
+
+  <svg viewBox="0 0 680 372" role="img">
+    <title>omni-db-mcp 两级分流骨架</title>
+    <defs>
+      <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </marker>
+    </defs>
+    <rect x="230" y="16" width="220" height="42" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+    <text x="340" y="37" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#2C2C2A">AI / Agent</text>
+
+    <line x1="340" y1="58" x2="340" y2="80" stroke="#5F5E5A" stroke-width="1.5" fill="none" marker-end="url(#ar)"/>
+    <text x="352" y="69" dominant-baseline="central" font-size="12" fill="#5F5E5A">MCP 协议</text>
+
+    <rect x="40" y="84" width="600" height="176" rx="16" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+    <text x="60" y="106" dominant-baseline="central" font-size="13" font-weight="500" fill="#0C447C">omni-db-mcp 底座（AI 眼里只有这一个身份）</text>
+
+    <rect x="60" y="120" width="560" height="42" rx="8" fill="#B5D4F4" stroke="#378ADD" stroke-width="0.5"/>
+    <text x="76" y="141" dominant-baseline="central" font-size="13" font-weight="500" fill="#042C53">一级分流</text>
+    <text x="604" y="141" text-anchor="end" dominant-baseline="central" font-size="12" fill="#185FA5">工具名 → 底座能力（压根不认识任何数据库）</text>
+
+    <rect x="60" y="172" width="560" height="42" rx="8" fill="#85B7EB" stroke="#185FA5" stroke-width="0.5"/>
+    <text x="76" y="193" dominant-baseline="central" font-size="13" font-weight="500" fill="#042C53">二级分流</text>
+    <text x="604" y="193" text-anchor="end" dominant-baseline="central" font-size="12" fill="#042C53">连接别名 → 插件实例（到这里才知道是 MySQL）</text>
+
+    <text x="340" y="238" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#185FA5">规则 · 分级 · 切面 · 审计，全在这一层完成</text>
+
+    <line x1="340" y1="260" x2="340" y2="282" stroke="#5F5E5A" stroke-width="1.5" fill="none" marker-end="url(#ar)"/>
+    <text x="352" y="271" dominant-baseline="central" font-size="12" fill="#5F5E5A">统一的插件接口</text>
+
+    <g font-size="12.5">
+      <rect x="60" y="288" width="170" height="62" rx="8" fill="#FFFFFF" stroke="#B4B2A9" stroke-width="0.5"/>
+      <text x="145" y="308" text-anchor="middle" dominant-baseline="central" font-weight="500" fill="#2C2C2A">mysqlPlugin.py</text>
+      <text x="145" y="330" text-anchor="middle" dominant-baseline="central" fill="#5F5E5A">MySQL 5.7 / 8.0</text>
+
+      <rect x="255" y="288" width="170" height="62" rx="8" fill="#FFFFFF" stroke="#B4B2A9" stroke-width="0.5"/>
+      <text x="340" y="308" text-anchor="middle" dominant-baseline="central" font-weight="500" fill="#2C2C2A">redisPlugin.py</text>
+      <text x="340" y="330" text-anchor="middle" dominant-baseline="central" fill="#5F5E5A">Redis</text>
+
+      <rect x="450" y="288" width="170" height="62" rx="8" fill="#FFFFFF" stroke="#B4B2A9" stroke-width="0.5"/>
+      <text x="535" y="308" text-anchor="middle" dominant-baseline="central" font-weight="500" fill="#2C2C2A">mongoPlugin.py</text>
+      <text x="535" y="330" text-anchor="middle" dominant-baseline="central" fill="#5F5E5A">MongoDB</text>
+    </g>
+  </svg>
+
+  <div class="card">
+    <h4 style="margin-top:0">关键设计：一级分流那层，代码里不许出现 <code>if mysql</code></h4>
+    <p style="margin-bottom:0">一级分流只认两样东西：<b>工具名</b>和<b>连接别名</b>。它不知道 MySQL 是什么，也不知道 SQL 长什么样。所有数据库的细节都关在插件里。这条守住了，加新库就永远不用动底座。</p>
+  </div>
+
+  <h3>扩展性验证：加一个库要动多少</h3>
+  <table>
+    <tr><th>想加什么</th><th>要动的文件</th><th>底座改动</th></tr>
+    <tr><td>支持 PostgreSQL</td><td>新增 <code>pgPlugin.py</code> + <code>pgConfig.yaml</code>，<code>base.py</code> 加一行 import</td><td><span class="pill p-b">1 行</span></td></tr>
+    <tr><td>加一条危险规则</td><td>一处 <code>add_rule()</code> 调用</td><td><span class="pill p-ok">0</span></td></tr>
+    <tr><td>出错时发通知</td><td>一处 <code>on_error()</code> 注册</td><td><span class="pill p-ok">0</span></td></tr>
+    <tr><td>日志改落文件</td><td>一处 <code>set_backend()</code></td><td><span class="pill p-ok">0</span></td></tr>
+    <tr><td>加一个 AI 工具</td><td>工具面加个注册</td><td><span class="pill p-ok">0</span></td></tr>
+  </table>
+</section>
+
+<!-- ============ 4 ============ -->
+<section id="s4">
+  <h2><span class="num">04</span>三个角色</h2>
+  <p class="lead">整个项目只有三种东西，职责边界很清楚。</p>
+
+  <div class="grid2">
+    <div class="card">
+      <h4 style="margin-top:0">底座</h4>
+      <p class="note"><code>basePlugin.py</code> + <code>core/</code></p>
+      <p style="margin-bottom:0">入口、分流、规则、分级、审计、错误处理。<br><b>不认识任何数据库。</b></p>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">插件</h4>
+      <p class="note"><code>plugins/*.py</code></p>
+      <p style="margin-bottom:0">连库、执行、探测版本、判断操作级别。<br><b>一个数据库类型一个文件，一个类。</b></p>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">连接配置</h4>
+      <p class="note"><code>conf/*.yaml</code></p>
+      <p style="margin-bottom:0">有哪些库、在哪、什么级别。<br><b>密码不写在这，走环境变量。</b></p>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">规则包</h4>
+      <p class="note"><code>rules/*.yaml</code></p>
+      <p style="margin-bottom:0">一套可复用的安全规则，可以全局套，也可以挂到单个连接。<br><b>纯规则，可放心分享。</b></p>
+    </div>
+  </div>
+
+  <h3>一个库只对应一个类</h3>
+  <div class="card quote">
+    <p><b>MySQL 只有一个 <code>MySQLPlugin</code> 类</b>，不管它是 5.7 还是 8.0、在本地还是云端。</p>
+    <p style="margin-bottom:0">版本差异不靠"多写几个类"解决，而是连上之后<b>探测一次版本</b>，把差异记在连接对象上，后面按实际情况调整行为。</p>
+  </div>
+
+  <svg viewBox="0 0 680 232" role="img">
+    <title>一个插件类服务多个环境</title>
+    <defs>
+      <marker id="ar2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </marker>
+    </defs>
+    <rect x="150" y="14" width="380" height="50" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+    <text x="340" y="31" text-anchor="middle" dominant-baseline="central" font-size="13.5" font-weight="500" fill="#042C53">MySQLPlugin（全项目只有 1 个类）</text>
+    <text x="340" y="50" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#185FA5">不含版本分支 · 不含环境分支</text>
+
+    <line x1="340" y1="64" x2="340" y2="104" stroke="#5F5E5A" stroke-width="1.5" fill="none"/>
+    <line x1="145" y1="104" x2="535" y2="104" stroke="#5F5E5A" stroke-width="1.5" fill="none"/>
+    <line x1="145" y1="104" x2="145" y2="122" stroke="#5F5E5A" stroke-width="1.5" fill="none" marker-end="url(#ar2)"/>
+    <line x1="340" y1="104" x2="340" y2="122" stroke="#5F5E5A" stroke-width="1.5" fill="none" marker-end="url(#ar2)"/>
+    <line x1="535" y1="104" x2="535" y2="122" stroke="#5F5E5A" stroke-width="1.5" fill="none" marker-end="url(#ar2)"/>
+
+    <g font-size="12.5">
+      <rect x="60" y="128" width="170" height="76" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+      <text x="145" y="150" text-anchor="middle" dominant-baseline="central" font-weight="500" fill="#2C2C2A">local-test</text>
+      <text x="145" y="170" text-anchor="middle" dominant-baseline="central" fill="#5F5E5A">本机 8.0.44</text>
+      <text x="145" y="188" text-anchor="middle" dominant-baseline="central" fill="#5F5E5A">级别 write</text>
+
+      <rect x="255" y="128" width="170" height="76" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+      <text x="340" y="150" text-anchor="middle" dominant-baseline="central" font-weight="500" fill="#2C2C2A">vm-docker</text>
+      <text x="340" y="170" text-anchor="middle" dominant-baseline="central" fill="#5F5E5A">WSL Docker 8.0</text>
+      <text x="340" y="188" text-anchor="middle" dominant-baseline="central" fill="#5F5E5A">级别 write</text>
+
+      <rect x="450" y="128" width="170" height="76" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+      <text x="535" y="150" text-anchor="middle" dominant-baseline="central" font-weight="500" fill="#2C2C2A">crm-prod</text>
+      <text x="535" y="170" text-anchor="middle" dominant-baseline="central" fill="#5F5E5A">云服务器 5.7.43</text>
+      <text x="535" y="188" text-anchor="middle" dominant-baseline="central" fill="#5F5E5A">级别 readonly</text>
+    </g>
+  </svg>
+</section>
+
+<!-- ============ 5 ============ -->
+<section id="s5">
+  <h2><span class="num">05</span>走一遍真实流程</h2>
+  <p class="lead">用你自己的三个环境，看四件典型的事分别会发生什么。</p>
+
+  <h3>一次调用的完整路径</h3>
+  <svg viewBox="0 0 680 348" role="img">
+    <title>一次调用的完整链路</title>
+    <defs>
+      <marker id="ar3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </marker>
+    </defs>
+    <rect x="100" y="16" width="480" height="32" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+    <text x="340" y="32" text-anchor="middle" dominant-baseline="central" font-size="13" fill="#2C2C2A">AI 调用 db_query · connection=crm-prod</text>
+    <line x1="340" y1="48" x2="340" y2="58" stroke="#5F5E5A" stroke-width="1.5" fill="none" marker-end="url(#ar3)"/>
+    <rect x="100" y="62" width="480" height="32" rx="8" fill="#B5D4F4" stroke="#378ADD" stroke-width="0.5"/>
+    <text x="340" y="78" text-anchor="middle" dominant-baseline="central" font-size="13" fill="#042C53">一级分流：工具名 → 执行链路</text>
+    <line x1="340" y1="94" x2="340" y2="104" stroke="#5F5E5A" stroke-width="1.5" fill="none" marker-end="url(#ar3)"/>
+    <rect x="100" y="108" width="480" height="32" rx="8" fill="#85B7EB" stroke="#185FA5" stroke-width="0.5"/>
+    <text x="340" y="124" text-anchor="middle" dominant-baseline="central" font-size="13" fill="#042C53">规则合成 + 分级判定 —— 拦截点就在这里</text>
+    <line x1="340" y1="140" x2="340" y2="150" stroke="#5F5E5A" stroke-width="1.5" fill="none" marker-end="url(#ar3)"/>
+    <rect x="100" y="154" width="480" height="32" rx="8" fill="#FFFFFF" stroke="#B4B2A9" stroke-width="0.5" stroke-dasharray="6 3"/>
+    <text x="340" y="170" text-anchor="middle" dominant-baseline="central" font-size="13" fill="#5F5E5A">切面链（预留）：限流 · 脱敏 · 缓存</text>
+    <line x1="340" y1="186" x2="340" y2="196" stroke="#5F5E5A" stroke-width="1.5" fill="none" marker-end="url(#ar3)"/>
+    <rect x="100" y="200" width="480" height="32" rx="8" fill="#B5D4F4" stroke="#378ADD" stroke-width="0.5"/>
+    <text x="340" y="216" text-anchor="middle" dominant-baseline="central" font-size="13" fill="#042C53">二级分流 + 连接保活（别名 → 插件实例）</text>
+    <line x1="340" y1="232" x2="340" y2="242" stroke="#5F5E5A" stroke-width="1.5" fill="none" marker-end="url(#ar3)"/>
+    <rect x="100" y="246" width="480" height="32" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+    <text x="340" y="262" text-anchor="middle" dominant-baseline="central" font-size="13" fill="#2C2C2A">插件执行：注入 LIMIT → 查库 → 规整结果</text>
+    <line x1="340" y1="278" x2="340" y2="288" stroke="#5F5E5A" stroke-width="1.5" fill="none" marker-end="url(#ar3)"/>
+    <rect x="100" y="292" width="480" height="32" rx="8" fill="#B5D4F4" stroke="#378ADD" stroke-width="0.5"/>
+    <text x="340" y="308" text-anchor="middle" dominant-baseline="central" font-size="13" fill="#042C53">写审计日志 → 返回结果</text>
+  </svg>
+
+  <h3>场景 A · 查云端 CRM 的订单表（成功）</h3>
+  <pre><code><span class="cmt"># AI 发起</span>
+db_query(connection=<span class="st">"crm-prod"</span>, operation=<span class="st">"SELECT id, amount, created_at FROM orders WHERE status='paid' LIMIT 50"</span>)
+
+<span class="cmt"># 底座内部做的事</span>
+1. 一级分流       → 这是查询，走执行链路
+2. 规则合成       → 加载 prod-safe 规则包：最高只读、最多 100 行
+3. 分级判定       → SELECT 属于 L1 只读，连接上限也是只读 → 放行
+4. 二级分流       → crm-prod → MySQLPlugin 实例（存活检查通过）
+5. 插件执行       → 探测过版本是 5.7.43，无 CTE 能力；SQL 没用到，正常执行
+6. 写审计日志     → 记录：谁、什么时候、哪个库、什么语句、多少行、耗时
+7. 返回
+
+<span class="cmt"># AI 收到</span>
+{
+  <span class="st">"ok"</span>: <span class="kw">true</span>,
+  <span class="st">"columns"</span>: [<span class="st">"id"</span>, <span class="st">"amount"</span>, <span class="st">"created_at"</span>],
+  <span class="st">"rows"</span>: [[<span class="st">"10231"</span>, <span class="st">"5800.00"</span>, <span class="st">"2026-09-12 10:23:01"</span>], ...],
+  <span class="st">"row_count"</span>: 23,
+  <span class="st">"elapsed_ms"</span>: 18,
+  <span class="st">"truncated"</span>: <span class="kw">false</span>
+}</code></pre>
+
+  <h3>场景 B · AI 想在云库删数据（被拦住）</h3>
+  <pre><code><span class="cmt"># AI 发起</span>
+db_exec(connection=<span class="st">"crm-prod"</span>, operation=<span class="st">"DELETE FROM orders WHERE status='cancelled'"</span>)
+
+<span class="cmt"># 底座内部做的事</span>
+1. 规则合成       → crm-prod 挂的是 prod-safe：max_level = readonly
+2. 分级判定       → DELETE 属于 L2 写入，超过上限 readonly
+3. <span class="kw">拦截</span>          → 不执行，直接拒绝
+4. 写审计日志     → 状态记为 <span class="st">denied</span>（被拒的操作也要记！）
+
+<span class="cmt"># AI 收到</span>
+{
+  <span class="st">"ok"</span>: <span class="kw">false</span>,
+  <span class="st">"error"</span>: <span class="st">"该操作需要 write 级别，连接 crm-prod 的上限是 readonly"</span>,
+  <span class="st">"suggestion"</span>: <span class="st">"如需执行，请确认后在 conf/mysqlConfig.yaml 调整该连接的 level"</span>
+}</code></pre>
+  <div class="card ok">
+    <p style="margin-bottom:0">注意最后那条 <b>suggestion</b>——拒绝要拒绝得清楚，告诉 AI 为什么不行、以及怎么才能行。含糊的拒绝会让 AI 反复乱试。</p>
+  </div>
+
+  <h3>场景 C · 从 Redis 取缓存（同一个工具，不同的库）</h3>
+  <pre><code><span class="cmt"># AI 发起——注意 operation 的写法变了，但没有 SQL</span>
+db_query(connection=<span class="st">"vm-docker-redis"</span>, operation=<span class="st">"GET user:10086:session"</span>)
+
+<span class="cmt"># 底座内部做的事</span>
+1. 一级分流       → 还是走执行链路（AI 用的还是同一个工具）
+2. 规则合成       → 这个连接没挂额外规则包，用内置默认
+3. 分级判定       → MySQL 靠解析 SQL，Redis 靠查命令表：GET → 只读 → 放行
+4. 二级分流       → vm-docker-redis → RedisPlugin 实例
+5. 插件执行       → redis-py 执行 GET
+6. 写审计日志     → 记录命令原文
+7. 返回
+
+<span class="cmt"># AI 收到——Redis 的标量结果也规整为二维表（kind="table"）</span>
+{
+  <span class="st">"ok"</span>: <span class="kw">true</span>,
+  <span class="st">"kind"</span>: <span class="st">"table"</span>,
+  <span class="st">"columns"</span>: [<span class="st">"value"</span>],
+  <span class="st">"rows"</span>: [[<span class="st">"{\"uid\":10086,\"name\":\"张三\"}"</span>]],
+  <span class="st">"row_count"</span>: 1,
+  <span class="st">"elapsed_ms"</span>: 2
+}</code></pre>
+
+  <h3>场景 D · AI 想在 5.7 上用 8.0 的语法（明确报错，不悄悄改写）</h3>
+  <pre><code><span class="cmt"># AI 发起——CTE 是 MySQL 8.0 才有的特性</span>
+db_query(connection=<span class="st">"crm-prod"</span>, operation=<span class="st">"WITH t AS (SELECT ...) SELECT * FROM t"</span>)
+
+<span class="cmt"># 底座内部做的事</span>
+1. 分级判定       → 只读，放行
+2. 二级分流       → MySQLPlugin 实例
+3. 插件执行前检查 → 该连接探测到的是 5.7.43，不支持 CTE
+4. <span class="kw">拒绝并说明</span>   → 不执行，也不偷偷改写 SQL
+
+<span class="cmt"># AI 收到</span>
+{
+  <span class="st">"ok"</span>: <span class="kw">false</span>,
+  <span class="st">"error"</span>: <span class="st">"该语法需要 MySQL 8.0 及以上，当前连接 crm-prod 的版本是 5.7.43"</span>,
+  <span class="st">"suggestion"</span>: <span class="st">"可改用子查询，或在 local-test（8.0.44）上测试该语句"</span>
+}</code></pre>
+  <div class="card warn">
+    <h4 style="margin-top:0">为什么不自动改写 SQL？</h4>
+    <p style="margin-bottom:0">因为改写有<b>语义漂移风险</b>——自动把 CTE 改成子查询，看着能跑，结果可能不一样。宁可挡住，也不给你一个悄悄出错的结果。</p>
+  </div>
+</section>
+
+<!-- ============ 6 ============ -->
+<section id="s6">
+  <h2><span class="num">06</span>配置怎么写</h2>
+  <p class="lead">一类数据库一个文件，打开就是全部信息。</p>
+
+  <h3>MySQL：三个环境在同一个文件里</h3>
+  <pre><code><span class="cmt"># conf/mysqlConfig.yaml</span>
+<span class="cmt"># 顶层 key 就是连接别名，AI 说话时用的就是这个名字</span>
+
+local-test:
+  host: 127.0.0.1
+  user: root
+  password: <span class="st">${env:OMNI_MYSQL_LOCAL_PWD}</span>
+  database: testdb
+  level: write              <span class="cmt"># 本地随便折腾</span>
+
+vm-docker:
+  host: 192.168.56.10
+  port: 13306               <span class="cmt"># Docker 映射端口通常不是 3306</span>
+  user: root
+  password: <span class="st">${env:OMNI_MYSQL_DOCKER_PWD}</span>
+  database: dev
+  level: write
+
+crm-prod:
+  host: 10.20.30.40
+  user: readonly            <span class="cmt"># 账号本身就是只读，双保险</span>
+  password: <span class="st">${env:OMNI_MYSQL_CRM_PWD}</span>
+  database: crm
+  level: readonly           <span class="cmt"># 生产锁死只读</span>
+  rules: [prod-safe]        <span class="cmt"># 挂上生产保护规则包</span></code></pre>
+
+  <h3>Redis 和 MongoDB</h3>
+  <div class="grid2">
+    <pre><code><span class="cmt"># conf/redisConfig.yaml</span>
+vm-docker-redis:
+  host: 192.168.56.10
+  port: 6379
+  password: <span class="st">${env:OMNI_REDIS_PWD}</span>
+  db: 0
+  level: write</code></pre>
+    <pre><code><span class="cmt"># conf/mongoConfig.yaml</span>
+vm-docker-mongo:
+  host: 192.168.56.10
+  port: 27017
+  user: admin
+  password: <span class="st">${env:OMNI_MONGO_PWD}</span>
+  database: dev
+  level: write</code></pre>
+  </div>
+
+  <h3>密码放在环境变量里</h3>
+  <pre><code><span class="cmt"># .env —— 这个文件不进 Git</span>
+OMNI_MYSQL_LOCAL_PWD=your-local-password
+OMNI_MYSQL_DOCKER_PWD=your-docker-password
+OMNI_MYSQL_CRM_PWD=your-prod-password
+OMNI_REDIS_PWD=your-redis-password
+OMNI_MONGO_PWD=your-mongo-password</code></pre>
+  <div class="card ok">
+    <p style="margin-bottom:0">这样一来，<b>conf/ 下的配置文件里没有一个真实密码</b>，所以它们可以放心进 Git、也可以发给同事——他只要自己填 <code>.env</code> 就能连自己的库。</p>
+  </div>
+
+  <h3>规则包：一套可复用的安全规则</h3>
+  <div class="grid2">
+    <pre><code><span class="cmt"># rules/prod-safe.yaml —— 建议按连接挂载；要全局生效可改 global: true</span>
+name: 生产保护
+global: false             <span class="cmt"># 挂到需要的连接（如 crm-prod 的 rules: [prod-safe]）</span>
+max_level: readonly       <span class="cmt"># 最高只读</span>
+max_rows: 100             <span class="cmt"># 一次最多返回 100 行</span>
+deny:
+  - DDL
+  - multi_statement
+  - update_without_where</code></pre>
+    <pre><code><span class="cmt"># rules/dev-loose.yaml</span>
+name: 开发放宽
+max_rows: 1000
+deny:
+  - multi_statement       <span class="cmt"># 只禁多语句，DDL 放开</span></code></pre>
+  </div>
+
+  <h4>规则是四层叠起来的</h4>
+  <svg viewBox="0 0 680 236" role="img">
+    <title>规则四层合成</title>
+    <defs>
+      <marker id="ar4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </marker>
+    </defs>
+    <rect x="40" y="14" width="330" height="38" rx="8" fill="#185FA5"/>
+    <text x="56" y="33" dominant-baseline="central" font-size="13" font-weight="500" fill="#FFFFFF">内置默认</text>
+    <text x="354" y="33" text-anchor="end" dominant-baseline="central" font-size="12" fill="#E6F1FB">只读 · 禁 DDL</text>
+
+    <rect x="40" y="62" width="330" height="38" rx="8" fill="#378ADD"/>
+    <text x="56" y="81" dominant-baseline="central" font-size="13" font-weight="500" fill="#FFFFFF">全局规则包</text>
+    <text x="354" y="81" text-anchor="end" dominant-baseline="central" font-size="12" fill="#FFFFFF">所有连接自动套</text>
+
+    <rect x="40" y="110" width="330" height="38" rx="8" fill="#85B7EB"/>
+    <text x="56" y="129" dominant-baseline="central" font-size="13" font-weight="500" fill="#042C53">连接自己的规则包</text>
+    <text x="354" y="129" text-anchor="end" dominant-baseline="central" font-size="12" fill="#042C53">只对该连接生效</text>
+
+    <rect x="40" y="158" width="330" height="38" rx="8" fill="#B5D4F4"/>
+    <text x="56" y="177" dominant-baseline="central" font-size="13" font-weight="500" fill="#042C53">连接里直接写的设置</text>
+    <text x="354" y="177" text-anchor="end" dominant-baseline="central" font-size="12" fill="#185FA5">优先级最高</text>
+
+    <line x1="382" y1="105" x2="446" y2="105" stroke="#5F5E5A" stroke-width="1.5" fill="none" marker-end="url(#ar4)"/>
+    <rect x="458" y="76" width="182" height="58" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+    <text x="549" y="96" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="500" fill="#042C53">生效的规则</text>
+    <text x="549" y="115" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#185FA5">级别 · 行数 · 黑名单</text>
+  </svg>
+
+  <div class="card warn">
+    <h4 style="margin-top:0">一条铁律：规则叠加只能往严里叠</h4>
+    <table style="margin-bottom:8px">
+      <tr><th>规则项</th><th>只能往哪调</th></tr>
+      <tr><td><code>max_level</code></td><td>只能调低（readonly &lt; write &lt; danger）</td></tr>
+      <tr><td><code>max_rows</code></td><td>只能调小</td></tr>
+      <tr><td><code>deny</code></td><td>只能加，不能删</td></tr>
+    </table>
+    <p style="margin-bottom:0">放宽只有两个口（v1.0 定稿语义）：<b>连接内联的 <code>level</code> 是属主授权声明，直接生效</b>（不写则默认 readonly）；<b>规则包要放宽，必须在那个连接上显式写 <code>unsafe: true</code></b>。这样一来，以后你只要搜一次 <code>unsafe</code> 和 <code>level</code>，就能列出所有放宽点，审查极方便。</p>
+  </div>
+</section>
+
+<!-- ============ 7 ============ -->
+<section id="s7">
+  <h2><span class="num">07</span>AI 看到的工具</h2>
+  <p class="lead">全部就 5 个，工具少，AI 才不容易选错。</p>
+
+  <table>
+    <tr><th>工具</th><th>干什么</th><th>MySQL 示例</th><th>Redis 示例</th></tr>
+    <tr>
+      <td><code>db_list_connections</code></td>
+      <td>有哪些库可用、什么级别、什么能力</td>
+      <td colspan="2" style="color:#8B949E">不区分数据库类型</td>
+    </tr>
+    <tr>
+      <td><code>db_list_tables</code></td>
+      <td>列出有哪些表 / 集合</td>
+      <td><code>"testdb"</code></td>
+      <td>按 key 前缀分组</td>
+    </tr>
+    <tr>
+      <td><code>db_describe_table</code></td>
+      <td>看表结构</td>
+      <td><code>"testdb", "orders"</code></td>
+      <td>key 的类型与 TTL</td>
+    </tr>
+    <tr>
+      <td><code>db_query</code></td>
+      <td>只读操作</td>
+      <td><code>"SELECT ..."</code></td>
+      <td><code>"GET user:1"</code></td>
+    </tr>
+    <tr>
+      <td><code>db_exec</code></td>
+      <td>写入 / 结构变更（受级别管控）</td>
+      <td><code>"INSERT ..."</code></td>
+      <td><code>"SET k v"</code></td>
+    </tr>
+  </table>
+
+  <h3>AI 怎么知道每个库该传什么格式？</h3>
+  <pre><code><span class="cmt"># db_list_connections 的返回里带上了这些信息</span>
+{
+  <span class="st">"connections"</span>: [
+    {
+      <span class="st">"name"</span>: <span class="st">"crm-prod"</span>,
+      <span class="st">"dialect"</span>: <span class="st">"mysql"</span>,
+      <span class="st">"version"</span>: <span class="st">"5.7.43"</span>,
+      <span class="st">"level"</span>: <span class="st">"readonly"</span>,
+      <span class="st">"capabilities"</span>: [<span class="st">"sql"</span>, <span class="st">"entity"</span>, <span class="st">"describe"</span>, <span class="st">"transaction"</span>],
+      <span class="st">"operation_hint"</span>: <span class="st">"operation 传 SQL 字符串"</span>
+    },
+    {
+      <span class="st">"name"</span>: <span class="st">"vm-docker-redis"</span>,
+      <span class="st">"dialect"</span>: <span class="st">"redis"</span>,
+      <span class="st">"version"</span>: <span class="st">"7.2.4"</span>,
+      <span class="st">"level"</span>: <span class="st">"write"</span>,
+      <span class="st">"capabilities"</span>: [<span class="st">"command"</span>, <span class="st">"namespace"</span>],
+      <span class="st">"operation_hint"</span>: <span class="st">"operation 传 Redis 命令字符串，如 GET user:1"</span>
+    }
+  ]
+}</code></pre>
+  <div class="card ok">
+    <p style="margin-bottom:0"><b>能力列表</b>（capabilities）的作用在这里体现：AI 一看就知道 <code>vm-docker-redis</code> 没有 <code>entity</code> 能力，不会去调 <code>db_list_tables</code>。</p>
+  </div>
+</section>
+
+<!-- ============ 8 ============ -->
+<section id="s8">
+  <h2><span class="num">08</span>安全设计</h2>
+  <p class="lead">三层防护：应用层拦截 + 规则收紧 + 数据库账号兜底。</p>
+
+  <h3>三级权限</h3>
+  <table>
+    <tr><th>级别</th><th>允许做什么</th><th>默认</th></tr>
+    <tr>
+      <td><span class="pill p-ok">readonly</span></td>
+      <td>看库表结构、查数据</td>
+      <td>默认级别</td>
+    </tr>
+    <tr>
+      <td><span class="pill p-mid">write</span></td>
+      <td>INSERT / UPDATE / DELETE</td>
+      <td>按连接开启</td>
+    </tr>
+    <tr>
+      <td><span class="pill p-no">danger</span></td>
+      <td>DROP / TRUNCATE / ALTER / 无 WHERE 的写</td>
+      <td>默认禁止</td>
+    </tr>
+  </table>
+
+  <h3>纵深防御：两道锁</h3>
+  <div class="card">
+    <table style="margin-bottom:0">
+      <tr><th>层</th><th>怎么做</th><th>作用</th></tr>
+      <tr>
+        <td>应用层</td>
+        <td>解析操作语句，判断级别，超过连接上限就拦</td>
+        <td>挡住误操作</td>
+      </tr>
+      <tr>
+        <td>数据库层</td>
+        <td>连接账号本身用只读账号（<code>user: readonly</code>）</td>
+        <td>万一应用层被绕过，数据库也不让写</td>
+      </tr>
+    </table>
+  </div>
+  <div class="card quote">
+    <p style="margin-bottom:0">所以 <code>crm-prod</code> 的配置里有两处只读：<b>连接级别写 <code>readonly</code>，账号也用只读账号</b>。这不是冗余，是双保险。</p>
+  </div>
+
+  <h3>分级判定怎么做</h3>
+  <table>
+    <tr><th>库</th><th>判定方式</th><th>举例</th></tr>
+    <tr><td>MySQL</td><td>解析 SQL 结构（不靠字符串匹配，防绕过）</td><td><code>SELECT</code> → 只读；<code>DROP</code> → danger</td></tr>
+    <tr><td>Redis</td><td>查命令名表</td><td><code>GET</code> → 只读；<code>FLUSHALL</code> → danger</td></tr>
+    <tr><td>MongoDB</td><td>查方法名表</td><td><code>find</code> → 只读；<code>dropDatabase</code> → danger</td></tr>
+  </table>
+  <div class="card danger">
+    <h4 style="margin-top:0">Redis 有个特别坑的命令：<code>KEYS *</code></h4>
+    <p style="margin-bottom:0">它不是"慢"，是<b>会把整个 Redis 实例卡死</b>——所有客户端一起等。所以实现上双保险：判为 danger 并给出「改用 SCAN」的建议；且即使连接放开到 danger 级也<b>不实际执行</b>，返回空结果加提示。绝不自动改写 SQL/命令（语义漂移风险）。</p>
+  </div>
+</section>
+
+<!-- ============ 9 ============ -->
+<section id="s9">
+  <h2><span class="num">09</span>审计留痕</h2>
+  <p class="lead">每次操作都记一笔，包括被拒绝的。</p>
+
+  <table>
+    <tr><th>记录什么</th><th>为什么</th></tr>
+    <tr><td>时间 · 连接名</td><td>什么时候、在哪个库做的</td></tr>
+    <tr><td>操作原文</td><td>到底做了什么</td></tr>
+    <tr><td>需要级别 · 实际级别</td><td>是该放行还是被拦，一目了然</td></tr>
+    <tr><td>状态 · 耗时 · 影响行数</td><td>成功、被拒、还是报错</td></tr>
+    <tr><td>错误信息</td><td>失败原因</td></tr>
+  </table>
+
+  <h3>为什么要记「被拒绝的操作」</h3>
+  <div class="card quote">
+    <p style="margin-bottom:0">只记录执行成功的事，你只看到"AI 干了什么"；记上被拒的，你还能看到"<b>AI 想干什么但被挡住了</b>"。后者往往更有价值——它直接告诉你规则设得对不对、AI 是不是在乱试。</p>
+  </div>
+
+  <h3>两个落点</h3>
+  <table>
+    <tr><th>落点</th><th>用途</th></tr>
+    <tr><td>SQLite 数据库</td><td>可查询、可统计（比如"这个月被拒了几次"）</td></tr>
+    <tr><td>JSONL 日志文件</td><td>可直接看、方便外部工具采集</td></tr>
+  </table>
+  <div class="card warn">
+    <p style="margin-bottom:0"><b>审计日志里含真实 SQL 语句，绝对不能进 Git。</b>配置文件反而不怕（密码走了环境变量），日志才是真正敏感的东西。</p>
+  </div>
+</section>
+
+<!-- ============ 10 ============ -->
+<section id="s10">
+  <h2><span class="num">10</span>项目结构</h2>
+  <p class="lead">核心代码（不含测试与脚本）约 2000 行，最大的单文件 327 行，全部低于 350 行上限。</p>
+
+  <pre><code>omni-db-mcp/
+├─ base.py                    启动入口（很薄，十几行）
+├─ basePlugin.py              插件契约：能力常量 + 抽象基类 + 注册表
+├─ core/                      底座
+│  ├─ errors.py               异常体系 + 错误回调
+│  ├─ policy.py               规则包加载 + 合成 + 分级判定
+│  ├─ audit.py                审计日志
+│  ├─ connections.py          连接管理 + 二级分流 + 保活重连
+│  └─ app.py                  一级分流 + 切面链 + AI 工具注册
+├─ plugins/
+│  ├─ mysqlPlugin.py          MySQL 插件
+│  ├─ redisPlugin.py          Redis 插件
+│  └─ mongoPlugin.py          MongoDB 插件
+├─ conf/
+│  ├─ mysqlConfig.yaml        三个 MySQL 环境
+│  ├─ redisConfig.yaml
+│  └─ mongoConfig.yaml
+├─ rules/
+│  ├─ prod-safe.yaml          生产保护
+│  └─ dev-loose.yaml          开发放宽
+├─ tests/
+│  ├─ mockPlugin.py           假插件，让底座能脱离真库测试
+│  └─ test_core.py
+├─ logs/                      运行后自动生成
+├─ .env                       密码，不进 Git
+├─ .env.example               需要哪些密码变量
+├─ .gitignore
+└─ requirements.txt</code></pre>
+
+  <h3>依赖方向：一条线，绝不回环</h3>
+  <svg viewBox="0 0 680 268" role="img">
+    <title>模块依赖方向</title>
+    <defs>
+      <marker id="ar5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </marker>
+    </defs>
+    <rect x="240" y="14" width="200" height="38" rx="8" fill="#B5D4F4" stroke="#378ADD" stroke-width="0.5"/>
+    <text x="340" y="33" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="500" fill="#042C53" font-family="var(--mono)">base.py</text>
+    <line x1="340" y1="52" x2="340" y2="68" stroke="#5F5E5A" stroke-width="1.5" fill="none" marker-end="url(#ar5)"/>
+    <rect x="190" y="72" width="300" height="38" rx="8" fill="#85B7EB" stroke="#185FA5" stroke-width="0.5"/>
+    <text x="340" y="91" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="500" fill="#042C53" font-family="var(--mono)">core/app.py</text>
+    <line x1="340" y1="110" x2="340" y2="124" stroke="#5F5E5A" stroke-width="1.5" fill="none"/>
+    <line x1="145" y1="124" x2="535" y2="124" stroke="#5F5E5A" stroke-width="1.5" fill="none"/>
+    <line x1="145" y1="124" x2="145" y2="138" stroke="#5F5E5A" stroke-width="1.5" fill="none" marker-end="url(#ar5)"/>
+    <line x1="340" y1="124" x2="340" y2="138" stroke="#5F5E5A" stroke-width="1.5" fill="none" marker-end="url(#ar5)"/>
+    <line x1="535" y1="124" x2="535" y2="138" stroke="#5F5E5A" stroke-width="1.5" fill="none" marker-end="url(#ar5)"/>
+    <g font-family="var(--mono)" font-size="12">
+      <rect x="60" y="142" width="170" height="38" rx="8" fill="#378ADD"/>
+      <text x="145" y="161" text-anchor="middle" dominant-baseline="central" fill="#FFFFFF">connections.py</text>
+      <rect x="255" y="142" width="170" height="38" rx="8" fill="#378ADD"/>
+      <text x="340" y="161" text-anchor="middle" dominant-baseline="central" fill="#FFFFFF">policy.py</text>
+      <rect x="450" y="142" width="170" height="38" rx="8" fill="#378ADD"/>
+      <text x="535" y="161" text-anchor="middle" dominant-baseline="central" fill="#FFFFFF">audit.py</text>
+    </g>
+    <line x1="145" y1="180" x2="145" y2="192" stroke="#5F5E5A" stroke-width="1.5" fill="none"/>
+    <line x1="340" y1="180" x2="340" y2="192" stroke="#5F5E5A" stroke-width="1.5" fill="none"/>
+    <line x1="535" y1="180" x2="535" y2="192" stroke="#5F5E5A" stroke-width="1.5" fill="none"/>
+    <line x1="145" y1="192" x2="535" y2="192" stroke="#5F5E5A" stroke-width="1.5" fill="none"/>
+    <line x1="340" y1="192" x2="340" y2="206" stroke="#5F5E5A" stroke-width="1.5" fill="none" marker-end="url(#ar5)"/>
+    <rect x="240" y="210" width="200" height="38" rx="8" fill="#185FA5"/>
+    <text x="340" y="229" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="500" fill="#FFFFFF" font-family="var(--mono)">core/errors.py</text>
+  </svg>
+
+  <div class="card">
+    <h4 style="margin-top:0">解耦的真正判据</h4>
+    <p style="margin-bottom:0">不是"分了模块"就叫解耦。<b>插件只允许 <code>from basePlugin import ...</code>，绝不允许 import 底座内部任何东西。</b>这条线守住了，插件才能独立测试、独立演进，底座改内部实现也影响不到它。</p>
+  </div>
+</section>
+
+<!-- ============ 11 ============ -->
+<section id="s11">
+  <h2><span class="num">11</span>能力范围</h2>
+  <p class="lead">一条判定标准：能不能塞进「命名空间 → 实体 → 二维结果」这个模型。</p>
+
+  <table>
+    <tr><th>档</th><th>数据库类型</th></tr>
+    <tr>
+      <td><span class="pill p-ok">首版就做</span></td>
+      <td>MySQL 5.7 / 8.0（本地 / Docker / 云）· Redis · MongoDB</td>
+    </tr>
+    <tr>
+      <td><span class="pill p-b">架构已就绪</span></td>
+      <td>PostgreSQL · SQLite · SQL Server · 国产库（达梦 / 金仓 / OceanBase / GaussDB）· Elasticsearch（可选）· ClickHouse（需超时兜底）</td>
+    </tr>
+    <tr>
+      <td><span class="pill p-no">明确不做</span></td>
+      <td>时序（InfluxDB / Prometheus）· 图（Neo4j）· 向量（Milvus）· 异步数仓（Hive / Trino / BigQuery）</td>
+    </tr>
+  </table>
+
+  <div class="card warn">
+    <h4 style="margin-top:0">为什么不做后四类</h4>
+    <p style="margin-bottom:0">它们返回的东西<b>不是二维表</b>——时序返回序列、图返回图、向量返回相似度、数仓是"提交-轮询"模型。硬塞进来要改结果结构和执行签名，会把整套契约拖成一团。这类库用专门的 MCP 工具更合适。</p>
+  </div>
+
+  <h3>以后能往哪扩</h3>
+  <table>
+    <tr><th>想扩什么</th><th>属于哪种</th><th>怎么加</th></tr>
+    <tr><td>限流 / 配额</td><td>切面</td><td>挂在切面链上，不新增模块</td></tr>
+    <tr><td>敏感字段脱敏</td><td>切面</td><td>同上</td></tr>
+    <tr><td>元数据 / 结果缓存</td><td>切面</td><td>同上</td></tr>
+    <tr><td>两个环境结构对比</td><td>模块 + 工具</td><td><code>core/diff.py</code> + <code>db_diff</code> 工具</td></tr>
+    <tr><td>SSH 隧道</td><td>模块</td><td><code>core/tunnel.py</code>，插在连接层之下</td></tr>
+    <tr><td>危险操作二次确认</td><td>模块 + 切面</td><td><code>core/approval.py</code></td></tr>
+    <tr><td>查审计日志</td><td><b>只要一个工具</b></td><td>复用 <code>audit.py</code>，加个工具入口</td></tr>
+  </table>
+  <p class="note">注意最后一行——很多"新能力"根本不需要新模块，加个切面或加个工具就够。</p>
+</section>
+
+<!-- ============ 12 ============ -->
+<section id="s12">
+  <h2><span class="num">12</span>决策清单</h2>
+  <p class="lead">这些是已经定下来的，不用再议。</p>
+
+  <table>
+    <tr><th>项</th><th>决定</th></tr>
+    <tr><td>项目名</td><td><code>omni-db-mcp</code></td></tr>
+    <tr><td>技术栈</td><td>Python（FastMCP + pymysql + sqlglot + redis-py + pymongo）</td></tr>
+    <tr><td>继承结构</td><td>两层：<code>BasePlugin</code> → 各库插件（不做按范式的多层继承）</td></tr>
+    <tr><td>契约方法</td><td>9 个：connect / close / health_check / server_info / list_namespaces / list_entities / describe / execute / classify</td></tr>
+    <tr><td>能力声明</td><td><code>capabilities</code> 常量集合，写在 <code>basePlugin.py</code></td></tr>
+    <tr><td>配置组织</td><td>一类库一个 YAML，顶层 key 是连接别名</td></tr>
+    <tr><td>密码</td><td>走 <code>${env:VAR}</code>，配置文件可进 Git</td></tr>
+    <tr><td>权限分级</td><td>三级：readonly / write / danger</td></tr>
+    <tr><td>规则包</td><td><code>rules/*.yaml</code>，四层合成，只能收紧，放宽需 <code>unsafe: true</code></td></tr>
+    <tr><td>工具面</td><td>5 个工具</td></tr>
+    <tr><td>日志</td><td>SQLite + JSONL 双写，8 个字段，被拒操作也记</td></tr>
+    <tr><td>审计范围</td><td>只支持上述范围内的数据库类型</td></tr>
+  </table>
+
+  <h3>开工前要补的三件小事（v1.0 已全部落地）</h3>
+  <table>
+    <tr><th>补什么</th><th>状态</th></tr>
+    <tr><td>配置字段可选化</td><td><span class="pill p-ok">已实现</span> — 全字段可选，SQLite 等文件库只用 path，账号密码可空</td></tr>
+    <tr><td>加执行超时</td><td><span class="pill p-ok">已实现</span> — 连接 timeout 下发到驱动（MySQL read/write_timeout、Redis socket_timeout 等）</td></tr>
+    <tr><td><code>QueryResult</code> 预留 <code>kind</code> 字段</td><td><span class="pill p-ok">已实现</span> — 首版恒为 "table"，结构就位</td></tr>
+  </table>
+
+  <h3>下一步（已闭环）</h3>
+  <div class="card ok">
+    <p style="margin-bottom:0">四步全部走完并验收：<b>① 契约层</b> → <b>② 底座</b>（61 项离线测试全绿）→ <b>③ MySQL 插件</b> → <b>④/⑤ 接入三方言真实环境</b>（只加配置、零代码改动）。MCP stdio 端到端实测通过。实现与设计的偏差记录见 <code>IMPLEMENTATION_NOTES.md</code>。</p>
+  </div>
+
+  <hr>
+  <p class="note" style="text-align:center">omni-db-mcp · 设计说明书 · 2026-09-28 · v1.0 按实现修订（行为以 SPEC.md 与代码为准）</p>
+</section>
+
+</main>
+</div>
+</div>
+</body>
+</html>
